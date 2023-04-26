@@ -1,9 +1,11 @@
 import requests 
 
-from cs50 import SQL
+import sqlalchemy
 
-# Connect database using CS50 library
-db = SQL('sqlite:///playoffs.db')
+# Connect to the sqlite database, echo=True logs all SQL commands
+engine = sqlalchemy.create_engine("sqlite:///playoffs.db", echo=True)
+# Start a connection object
+conn = engine.connect()
 
 # API URL
 API_URL = 'https://statsapi.web.nhl.com'
@@ -49,53 +51,46 @@ for link in game_links:
             series[f'{name_variants[0]}'] = dict(Game_1 = link_response)
 
 
-for matchup in series:
-      for game in series[matchup]:
-        # Get a list of the scoring plays
-        scoring_plays = series[matchup][game]['liveData']['plays']['scoringPlays']
+# for matchup in series:
+#       for game in series[matchup]:
+#         # Get a list of the scoring plays
+#         scoring_plays = series[matchup][game]['liveData']['plays']['scoringPlays']
 
-        # Make a dict to store the data that we really want
-        scoringPlays = {}
-        for play in scoring_plays:
-                period = series[matchup][game]['liveData']['plays']['allPlays'][play]['about']['period']
-                period_time = series[matchup][game]['liveData']['plays']['allPlays'][play]['about']['periodTime']
-                scoring_team = series[matchup][game]['liveData']['plays']['allPlays'][play]['team']['name']
+#         # Make a dict to store the data that we really want
+#         scoringPlays = {}
+#         for play in scoring_plays:
+#                 period = series[matchup][game]['liveData']['plays']['allPlays'][play]['about']['period']
+#                 period_time = series[matchup][game]['liveData']['plays']['allPlays'][play]['about']['periodTime']
+#                 scoring_team = series[matchup][game]['liveData']['plays']['allPlays'][play]['team']['name']
 
-                play_number = str(scoring_plays.index(play))
+#                 play_number = str(scoring_plays.index(play))
                 
-                # Append data to scoringPlays dict
-                scoringPlays.update( {
-                      f'{play_number}' : {
-                        "period" : period,
-                        "period_time" : period_time,
-                        "scoring_team" : scoring_team
-                      }
-                })
-        # Add the dict as a new key for the game
-        series[matchup][game]['scoringPlays'] = scoringPlays
+#                 # Append data to scoringPlays dict
+#                 scoringPlays.update( {
+#                       f'{play_number}' : {
+#                         "period" : period,
+#                         "period_time" : period_time,
+#                         "scoring_team" : scoring_team
+#                       }
+#                 })
+#         # Add the dict as a new key for the game
+#         series[matchup][game]['scoringPlays'] = scoringPlays
 
 
 # Insert all the plays into playoffs.db
 for matchup in series:
       for game in series[matchup]:
-            db.execute("INSERT INTO scoring_plays (matchup, game_number, datetime, period, period_time, scoring_team)) VALUES (?, ?, ?, ?, ?, ?)",
-                        )
+            for play in series[matchup][game]['liveData']['plays']['scoringPlays']:
+                game_number = int(game.split('_')[1])
+                game_date_time = series[matchup][game]['gameData']['datetime']['dateTime']
+                period = series[matchup][game]['liveData']['plays']['allPlays'][play]['about']['period']
+                period_time = f"00:{series[matchup][game]['liveData']['plays']['allPlays'][play]['about']['periodTime']}"
+                scoring_team = series[matchup][game]['liveData']['plays']['allPlays'][play]['team']['name']
+                conn.execute("INSERT INTO scoring_plays (matchup, game_number, datetime, period, period_time, scoring_team) VALUES (?, ?, ?, ?, ?, ?)", matchup, game_number, game_date_time, period, period_time, scoring_team)
 
+# Close the database connection
+conn.close()
 
-CREATE TABLE scoring_plays (
-    play_id INTEGER PRIMARY KEY,
-    matchup TEXT NOT NULL,
-    game_number INTEGER NOT NULL,
-    datetime DATETIME, 
-    period INTEGER, 
-    period_time TIME, 
-    scoring_team TEXT NOT NULL
-    );
-
-# for matchup in series:
-#       print(matchup)
-
-# print(series['New York Islanders v Carolina Hurricanes']['Game_1']['scoringPlays'])
             
 
 
